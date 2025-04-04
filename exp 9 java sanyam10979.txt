@@ -1,0 +1,275 @@
+// Easy Level: Create a simple Spring application that demonstrates Dependency Injection (DI) using Java-based configuration instead of XML. Define a Student class that depends on a Course class. Use Spring’s @Configuration and @Bean annotations to inject dependencies.
+
+import javax.persistence.*;
+import java.util.*;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.*;
+import org.springframework.orm.jpa.*;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
+import org.springframework.transaction.annotation.Transactional;
+import javax.sql.DataSource;
+import org.apache.commons.dbcp2.BasicDataSource;
+
+class Course {
+    private String courseName;
+    private String duration;
+
+    public Course(String courseName, String duration) {
+        this.courseName = courseName;
+        this.duration = duration;
+    }
+
+    public String getCourseName() {
+        return courseName;
+    }
+
+    public String getDuration() {
+        return duration;
+    }
+}
+
+class StudentDI {
+    private String name;
+    private Course course;
+
+    public StudentDI(String name, Course course) {
+        this.name = name;
+        this.course = course;
+    }
+
+    public void printDetails() {
+        System.out.println("Student Name: " + name);
+        System.out.println("Course Name: " + course.getCourseName());
+        System.out.println("Duration: " + course.getDuration());
+    }
+}
+
+@Configuration
+class EasyAppConfig {
+    @Bean
+    public Course course() {
+        return new Course("Java Programming", "3 Months");
+    }
+
+    @Bean
+    public StudentDI student() {
+        return new StudentDI("Alice", course());
+    }
+}
+
+// Medium Level: Develop a Hibernate-based application to perform CRUD (Create, Read, Update, Delete) operations on a Student entity using Hibernate ORM with MySQL.
+
+@Entity
+@Table(name = "students")
+class Student {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
+    private String name;
+    private int age;
+
+    public Student() {}
+    public Student(String name, int age) {
+        this.name = name;
+        this.age = age;
+    }
+    public int getId() {
+        return id;
+    }
+    public String getName() {
+        return name;
+    }
+    public int getAge() {
+        return age;
+    }
+    public void setName(String name) {
+        this.name = name;
+    }
+    public void setAge(int age) {
+        this.age = age;
+    }
+}
+
+class StudentDAO {
+    private EntityManagerFactory emf;
+
+    public StudentDAO(EntityManagerFactory emf) {
+        this.emf = emf;
+    }
+
+    public void createStudent(Student student) {
+        EntityManager em = emf.createEntityManager();
+        em.getTransaction().begin();
+        em.persist(student);
+        em.getTransaction().commit();
+        em.close();
+    }
+
+    public Student getStudent(int id) {
+        EntityManager em = emf.createEntityManager();
+        Student s = em.find(Student.class, id);
+        em.close();
+        return s;
+    }
+
+    public void updateStudent(Student student) {
+        EntityManager em = emf.createEntityManager();
+        em.getTransaction().begin();
+        em.merge(student);
+        em.getTransaction().commit();
+        em.close();
+    }
+
+    public void deleteStudent(int id) {
+        EntityManager em = emf.createEntityManager();
+        em.getTransaction().begin();
+        Student s = em.find(Student.class, id);
+        em.remove(s);
+        em.getTransaction().commit();
+        em.close();
+    }
+
+    public List<Student> listStudents() {
+        EntityManager em = emf.createEntityManager();
+        List<Student> list = em.createQuery("from Student", Student.class).getResultList();
+        em.close();
+        return list;
+    }
+}
+
+// Hard Level: Develop a Spring-based application integrated with Hibernate to manage transactions. Create a banking system where users can transfer money between accounts, ensuring transaction consistency.
+
+@Entity
+@Table(name = "accounts")
+class Account {
+    @Id
+    private int id;
+    private String name;
+    private double balance;
+
+    public Account() {}
+    public Account(int id, String name, double balance) {
+        this.id = id;
+        this.name = name;
+        this.balance = balance;
+    }
+    public int getId() {
+        return id;
+    }
+    public String getName() {
+        return name;
+    }
+    public double getBalance() {
+        return balance;
+    }
+    public void setBalance(double balance) {
+        this.balance = balance;
+    }
+}
+
+@Entity
+@Table(name = "transactions")
+class TransactionRecord {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
+    private int fromAccountId;
+    private int toAccountId;
+    private double amount;
+    private Date date;
+
+    public TransactionRecord() {}
+    public TransactionRecord(int fromAccountId, int toAccountId, double amount, Date date) {
+        this.fromAccountId = fromAccountId;
+        this.toAccountId = toAccountId;
+        this.amount = amount;
+        this.date = date;
+    }
+}
+
+class BankingService {
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    @Transactional
+    public void transferMoney(int fromId, int toId, double amount) {
+        Account from = entityManager.find(Account.class, fromId);
+        Account to = entityManager.find(Account.class, toId);
+        if (from.getBalance() < amount) {
+            throw new RuntimeException("Insufficient Balance");
+        }
+        from.setBalance(from.getBalance() - amount);
+        to.setBalance(to.getBalance() + amount);
+        TransactionRecord tx = new TransactionRecord(fromId, toId, amount, new Date());
+        entityManager.persist(tx);
+        entityManager.merge(from);
+        entityManager.merge(to);
+    }
+}
+
+@Configuration
+@EnableTransactionManagement
+class AppConfig {
+    @Bean
+    public DataSource dataSource() {
+        BasicDataSource ds = new BasicDataSource();
+        ds.setDriverClassName("com.mysql.cj.jdbc.Driver");
+        ds.setUrl("jdbc:mysql://localhost:3306/appdb");
+        ds.setUsername("root");
+        ds.setPassword("password");
+        return ds;
+    }
+
+    @Bean
+    public LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource ds) {
+        LocalContainerEntityManagerFactoryBean emf = new LocalContainerEntityManagerFactoryBean();
+        emf.setDataSource(ds);
+        emf.setPackagesToScan("com.example");
+        emf.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
+        Properties props = new Properties();
+        props.setProperty("hibernate.hbm2ddl.auto", "update");
+        props.setProperty("hibernate.dialect", "org.hibernate.dialect.MySQLDialect");
+        emf.setJpaProperties(props);
+        return emf;
+    }
+
+    @Bean
+    public JpaTransactionManager transactionManager(EntityManagerFactory emf) {
+        return new JpaTransactionManager(emf);
+    }
+
+    @Bean
+    public BankingService bankingService() {
+        return new BankingService();
+    }
+}
+
+// Combined Main Runner
+
+public class CombinedApp {
+    public static void main(String[] args) {
+        ApplicationContext context = new AnnotationConfigApplicationContext(EasyAppConfig.class);
+        StudentDI student = context.getBean(StudentDI.class);
+        student.printDetails();
+
+        EntityManagerFactory emf = Persistence.createEntityManagerFactory("my-pu");
+        StudentDAO dao = new StudentDAO(emf);
+        Student s1 = new Student("John", 21);
+        dao.createStudent(s1);
+        s1.setAge(22);
+        dao.updateStudent(s1);
+        for (Student s : dao.listStudents()) {
+            System.out.println(s.getName() + " - " + s.getAge());
+        }
+        dao.deleteStudent(s1.getId());
+
+        ApplicationContext ctx = new AnnotationConfigApplicationContext(AppConfig.class);
+        BankingService service = ctx.getBean(BankingService.class);
+        try {
+            service.transferMoney(101, 102, 500.0);
+            System.out.println("Transaction Successful");
+        } catch (Exception e) {
+            System.out.println("Transaction Failed: " + e.getMessage());
+        }
+    }
+}
